@@ -2,7 +2,7 @@
 
 A lightweight, zero-bloat, native Windows utility designed to combat desktop fatigue, promote healthy posture, and keep hydration on track. Every 30 minutes of continuous desk work, it gently takes over the screen for exactly 30 seconds with a fluid GDI+ vector animation (a swaying stick figure stretching overhead and an animated glass tumbler with sloshing water) and ambient floating bubbles[cite: 8, 10].
 
-To prevent workflow disruptions during calls or focus sessions, the utility cross-references a local schedule file (`meetings.txt`). If a meeting or quiet focus hour is active, the break is silently bypassed[cite: 8].
+To prevent workflow disruptions during calls or focus sessions, the utility cross-references a local schedule file (`meetings.txt`). If a meeting or quiet focus hour is active, the break is silently bypassed.
 
 ---
 

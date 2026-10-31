@@ -1,13 +1,15 @@
-markdown
 # 🤸‍♂️ Windows 11 Full-Screen Dynamic Stretch Break Reminder
 
-A lightweight, completely native Windows 11 utility designed to combat desktop fatigue and keep your posture in check. Every 30 minutes, it locks your screen with a smooth, fluid abstract screensaver for exactly 30 seconds. To prevent workflow disruptions during calls, it features an interactive control panel to snooze reminders until scheduled meetings have finished.
+A lightweight, completely native Windows 11 utility designed to combat desktop fatigue and keep your posture in check. Every 30 minutes, it locks your screen with a smooth, fluid abstract screensaver for exactly 30 seconds. 
+
+To prevent workflow disruptions during important calls or focus sessions, the utility silently checks a local text configuration file before firing. If you are inside a scheduled meeting window, the break is automatically skipped without ever interrupting you.
 
 ## ✨ Features
 * **100% Native Architecture:** Built completely with native Windows Form graphics inside a PowerShell engine—zero third-party tools required.
+* **Proactive Silence Engine:** Automatically reads a simple text file (`meetings.txt`) to cross-reference your schedule. If a meeting is active, it quietly exits.
+* **Auto-Generating Configuration:** Creates the text configuration file automatically on its first run with built-in template instructions.
 * **Flicker-Free Animation Engine:** Utilizes advanced memory double-buffering across the application canvas and user interfaces to provide smooth, anti-aliased floating circle shapes at ~25 FPS.
 * **Calm Countdown Tracker:** Displays a high-visibility countdown string ("This break will close automatically in X seconds") to keep users informed and prevent panic.
-* **Smart Meeting Snooze Control:** Includes an integrated text box interface to input an upcoming meeting time (e.g., `14:30`), writing a micro-token to your volatile system data to completely silence breaks until your appointment concludes.
 * **Sleep & Wake-Up Resilient:** Optimized specifically to stay aligned during modern laptop lid closures and sleep transitions without breaking the core time interval loops.
 
 ---
@@ -16,7 +18,7 @@ A lightweight, completely native Windows 11 utility designed to combat desktop f
 
 ### Step 1: Save the Core Script
 1. Open File Explorer and create a folder named `C:\Scripts\`.
-2. Save the `StretchReminder.ps1` file from this repository inside that folder.
+2. Save the code file from this repository as **`StretchReminder.ps1`** inside that folder.
 
 ### Step 2: Initialize Automation Engine
 To securely bypass registry limitations and handle automated execution loops across reboots, initialize the baseline schedule container using your terminal.
@@ -42,7 +44,29 @@ Because modern devices rely on Sleep modes instead of full shutdowns, modify the
 
 ---
 
+## 📅 Managing Your Meeting Schedule
+
+The first time the utility tries to run, it will automatically generate a template file at **`C:\Scripts\meetings.txt`**. 
+
+Open this file in Notepad at the start of your day to quickly log your busy blocks. The script skips any lines starting with a `#` sign, letting you keep the instructions intact. Simply add your meeting windows using a clean, 24-hour time range (`HH:MM-HH:MM`) on a new line:
+
+```text
+# === Stretch Reminder Focus/Meeting Schedule ===
+# Enter your busy time blocks below using 24-hour formatting (HH:MM-HH:MM).
+# Lines starting with '#' are ignored by the script.
+#
+# Samples:
+# 09:30-10:15
+# 14:00-15:30
+
+11:00-11:30
+13:30-14:30
+16:00-17:15
+```
+
+---
+
 ## 🛠️ Usage & Verification
-* **Immediate System Verification:** To test graphics rendering instantly, press `Win + R`, paste: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\Scripts\StretchReminder.ps1`, and hit Enter.
-* **Routine Behavior:** When starting up fresh, logging back into your workstation, or opening up your laptop lid, the script waits for an initial 30 minutes. It will not interrupt your startup sessions instantly.
-* **Manual Close Protocol:** The utility locks layout context controls to prevent accidental closure via standard system interrupt commands (`Alt + F4` / `Esc`). You must allow the 30-second timer to run out naturally or submit a valid 24-hour style format into the Snooze form control.
+* **Immediate System Verification:** To test graphics rendering instantly, press `Win + R`, paste: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\Scripts\StretchReminder.ps1`, and hit Enter. *(Note: Make sure your current time isn't blocked inside your meetings.txt file when testing!)*
+* **Routine Behavior:** When starting up fresh, logging back into your workstation, or opening up your laptop lid, the script waits for an initial 30 minutes. It will never interrupt your fresh desktop sessions.
+* **Manual Close Protocol:** The utility locks control interfaces to prevent accidental closure via standard system interrupt commands (`Alt + F4` / `Esc`). The screen will clear automatically after its 30-second timer finishes.

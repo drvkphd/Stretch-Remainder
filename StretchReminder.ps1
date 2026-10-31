@@ -1,16 +1,46 @@
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-# --- CHECK FOR SNOOZE ACTIVE ---
-$snoozeFile = "$env:TEMP\stretch_snooze.txt"
-if (Test-Path $snoozeFile) {
-    $snoozeUntilStr = Get-Content $snoozeFile -Raw
-    if ([DateTime]::TryParse($snoozeUntilStr, [ref](Get-Date))) {
-        $snoozeUntil = [DateTime]$snoozeUntilStr
-        if ((Get-Date) -lt $snoozeUntil) {
-            exit # Quietly exit if the snooze period is still active
-        } else {
-            Remove-Item $snoozeFile -ErrorAction SilentlyContinue
+# --- AUTO-CREATE MEETINGS FILE WITH SAMPLES IF MISSING ---
+$meetingFile = "C:\Scripts\meetings.txt"
+if (-not (Test-Path $meetingFile)) {
+    $defaultContent = @(
+        "# === Stretch Reminder Focus/Meeting Schedule ===",
+        "# Enter your busy time blocks below using 24-hour formatting (HH:MM-HH:MM).",
+        "# Lines starting with '#' are ignored by the script.",
+        "#",
+        "# Samples:",
+        "# 09:30-10:15",
+        "# 14:00-15:30",
+        "#"
+    )
+    $defaultContent | Out-File $meetingFile -Force
+}
+
+# --- CALENDAR CHECKER LOGIC ---
+$currentTime = Get-Date
+$meetings = Get-Content $meetingFile
+foreach ($line in $meetings) {
+    $line = $line.Trim()
+    # Skip empty lines or comment lines starting with #
+    if ($line -like "#*" -or [string]::IsNullOrWhiteSpace($line)) { continue }
+    
+    # Match HH:MM-HH:MM format safely
+    if ($line -match '^(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})$') {
+        $startTimeStr = $Matches[1]
+        $endTimeStr = $Matches[2]
+        
+        if ([DateTime]::TryParse($startTimeStr, [ref](Get-Date)) -and [DateTime]::TryParse($endTimeStr, [ref](Get-Date))) {
+            $startMeeting = [DateTime]$startTimeStr
+            $endMeeting = [DateTime]$endTimeStr
+            
+            # Handle intervals crossing midnight cleanly
+            if ($endMeeting -lt $startMeeting) { $endMeeting = $endMeeting.AddDays(1) }
+            
+            # SILENT SILENCE: Exit immediately if current time is inside a block
+            if ($currentTime -ge $startMeeting -and $currentTime -le $endMeeting) {
+                exit
+            }
         }
     }
 }
@@ -29,11 +59,10 @@ $form.TopMost = $true
 $form.BackColor = [System.Drawing.Color]::Black
 $form.ShowInTaskbar = $false
 
-# Explicit binding flags to prevent reflection ambiguity errors
 $bindingFlags = [System.Reflection.BindingFlags]::Instance -bor [System.Reflection.BindingFlags]::NonPublic
 $form.GetType().GetProperty("DoubleBuffered", $bindingFlags).SetValue($form, $true, $null)
 
-# Prevent manual closing
+# Prevent closing manually
 $form.Add_FormClosing({
     param($_, $e)
     if ($global:AllowClose -ne $true) { $e.Cancel = $true }
@@ -59,56 +88,20 @@ for ($i = 0; $i -lt $CircleCount; $i++) {
     [void]$global:Circles.Add($circle)
 }
 
-# --- UI CONTROLS (SNOOZE & COUNTDOWN) ---
+# --- HIGH-VISIBILITY COUNTDOWN DISPLAY ---
 $panel = New-Object System.Windows.Forms.Panel
-$panel.Size = New-Object System.Drawing.Size(420, 130)
+$panel.Size = New-Object System.Drawing.Size(420, 60)
 $panel.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48)
 $panel.GetType().GetProperty("DoubleBuffered", $bindingFlags).SetValue($panel, $true, $null)
 
-# Countdown Text Display
 $lblCountdown = New-Object System.Windows.Forms.Label
 $lblCountdown.Text = "This break will close automatically in 30 seconds."
 $lblCountdown.Font = New-Object System.Drawing.Font("Segoe UI", 11, [System.Drawing.FontStyle]::Bold)
-$lblCountdown.ForeColor = [System.Drawing.Color]::FromArgb(0, 210, 255) # Bright cyan
-$lblCountdown.Location = New-Object System.Drawing.Point(15, 12)
+$lblCountdown.ForeColor = [System.Drawing.Color]::FromArgb(0, 210, 255)
+$lblCountdown.Location = New-Object System.Drawing.Point(15, 18)
 $lblCountdown.AutoSize = $true
 
-$label = New-Object System.Windows.Forms.Label
-$label.Text = "Meeting scheduled at? (HH:MM / e.g. 14:30):"
-$label.ForeColor = [System.Drawing.Color]::White
-$label.Location = New-Object System.Drawing.Point(15, 48)
-$label.AutoSize = $true
-
-$textBox = New-Object System.Windows.Forms.TextBox
-$textBox.Location = New-Object System.Drawing.Point(15, 75)
-$textBox.Size = New-Object System.Drawing.Size(120, 25)
-
-$btnSnooze = New-Object System.Windows.Forms.Button
-$btnSnooze.Text = "Snooze Breaks"
-$btnSnooze.Location = New-Object System.Drawing.Point(145, 73)
-$btnSnooze.Size = New-Object System.Drawing.Size(130, 26)
-$btnSnooze.ForeColor = [System.Drawing.Color]::Black
-$btnSnooze.BackColor = [System.Drawing.Color]::LightGray
-
-$btnSnooze.Add_Click({
-    $inputTime = $textBox.Text
-    if ([DateTime]::TryParse($inputTime, [ref](Get-Date))) {
-        $targetTime = [DateTime]$inputTime
-        if ($targetTime -lt (Get-Date)) { $targetTime = $targetTime.AddDays(1) }
-        $targetTime.ToString("o") | Out-File $snoozeFile -Force
-        
-        $global:AllowClose = $true
-        $form.Close()
-    } else {
-        [System.Windows.Forms.MessageBox]::Show("Invalid time format. Please use HH:MM (24-hour style).")
-    }
-})
-
 $panel.Controls.Add($lblCountdown)
-$panel.Controls.Add($label)
-$panel.Controls.Add($textBox)
-$panel.Controls.Add($btnSnooze)
-
 $form.Add_Load({
     $panel.Location = New-Object System.Drawing.Point(($form.ClientSize.Width - $panel.Width - 40), ($form.ClientSize.Height - $panel.Height - 40))
 })
@@ -134,7 +127,7 @@ $form.Add_Paint({
 # --- CORE SYSTEMS TICK TIMER ---
 $global:AllowClose = $false
 $masterTimer = New-Object System.Windows.Forms.Timer
-$masterTimer.Interval = 40 # Optimized 25 FPS
+$masterTimer.Interval = 40 
 $startTime = [System.Diagnostics.Stopwatch]::StartNew()
 $lastSecondCheck = 0
 
@@ -159,8 +152,6 @@ $masterTimer.Add_Tick({
 })
 $masterTimer.Start()
 
-# Display form
 [System.Windows.Forms.Application]::Run($form)
 
-# Clean memory vectors
 foreach ($c in $global:Circles) { $c.Brush.Dispose() }

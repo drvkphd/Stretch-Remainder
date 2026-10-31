@@ -3,42 +3,40 @@ Add-Type -AssemblyName System.Drawing
 
 # --- PATH DEFINITIONS ---
 $meetingFile = Join-Path $PSScriptRoot "meetings.txt"
-$lastRunFile = "$env:TEMP\stretch_last_run.txt"
+$lastRunFile = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), "stretch_last_run.txt")
 $logFile     = Join-Path $PSScriptRoot "stretch_debug.log"
 $currentTime = Get-Date
 
 function Write-DebugLog ($msg) {
     $timestamp = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
-    $logEntry = "[$timestamp] $msg`r`n"
+    $logEntry = "[$timestamp] $msg
+"
     [System.IO.File]::AppendAllText($logFile, $logEntry)
 }
 
-# --- 1. SMART SESSION & COOLDOWN LOGIC ---
-$MinWorkMinutes = 25   # Minimum continuous desk work required before a break
-$MaxBreakGap    = 35   # If away longer than this, treat as stepping away from desk
+# --- 1. COOLDOWN & PRESENCE LOGIC ---
+$MinWorkMinutes = 30   # Continuous work minutes required before a break
+$MaxBreakGap = 45   # If away longer than 35m, grant a fresh work session
 
 if (Test-Path $lastRunFile) {
-    $lastRunStr = Get-Content $lastRunFile -Raw
+    $lastRunStr = [System.IO.File]::ReadAllText($lastRunFile)
     if ([DateTime]::TryParse($lastRunStr, [ref](Get-Date))) {
         $lastRunTime = [DateTime]$lastRunStr
         $minutesElapsed = ($currentTime - $lastRunTime).TotalMinutes
 
-        # CASE A: Stepped away / fresh wake-up (e.g., laptop was closed for hours or lunch)
         if ($minutesElapsed -gt $MaxBreakGap) {
-            Set-Content -Path $lastRunFile -Value $currentTime.ToString("o") -Force
+            [System.IO.File]::WriteAllText($lastRunFile, $currentTime.ToString("o"))
             Write-DebugLog "SESSION RESET: Stepped away for $([Math]::Round($minutesElapsed, 1)) mins. Timer restarted with 30m grace."
             exit
         }
 
-        # CASE B: Too soon since last break or session start
         if ($minutesElapsed -lt $MinWorkMinutes) {
             Write-DebugLog "BLOCKED: Only $([Math]::Round($minutesElapsed, 1)) mins worked since last break/wake."
             exit
         }
     }
 } else {
-    # First-time run: Initialize baseline timestamp and exit silently
-    Set-Content -Path $lastRunFile -Value $currentTime.ToString("o") -Force
+    [System.IO.File]::WriteAllText($lastRunFile, $currentTime.ToString("o"))
     Write-DebugLog "SESSION INITIALIZED: First run timestamp set. Grace period started."
     exit
 }
@@ -55,10 +53,10 @@ if (-not (Test-Path $meetingFile)) {
         "# 14:00-15:30",
         "#"
     )
-    Set-Content -Path $meetingFile -Value $defaultContent -Force
+    [System.IO.File]::WriteAllLines($meetingFile, $defaultContent)
 }
 
-$meetings = Get-Content $meetingFile
+$meetings = [System.IO.File]::ReadAllLines($meetingFile)
 foreach ($line in $meetings) {
     $line = $line.Trim()
     if ($line -like "#*" -or [string]::IsNullOrWhiteSpace($line)) { continue }
@@ -81,13 +79,13 @@ foreach ($line in $meetings) {
     }
 }
 
-# --- 3. MARK BREAK EXECUTION TIMESTAMP ---
-Set-Content -Path $lastRunFile -Value $currentTime.ToString("o") -Force
+# --- 3. MARK EXECUTION TIMESTAMP ---
+[System.IO.File]::WriteAllText($lastRunFile, $currentTime.ToString("o"))
 Write-DebugLog "TRIGGERED break window."
 
 # --- 4. UI & ANIMATION ENGINE ---
 $global:TimeRemaining = 30
-$CircleCount = 20
+$CircleCount = 18
 $rand = New-Object System.Random
 
 $form = New-Object System.Windows.Forms.Form
@@ -106,13 +104,13 @@ $form.Add_FormClosing({
     if ($global:AllowClose -ne $true) { $e.Cancel = $true }
 })
 
-# Generate floating circles
+# Ambient floating bubbles
 $global:Circles = New-Object System.Collections.ArrayList
 for ($i = 0; $i -lt $CircleCount; $i++) {
-    $r = $rand.Next(40, 120)
-    $color = [System.Drawing.Color]::FromArgb($rand.Next(120, 220), $rand.Next(50, 256), $rand.Next(50, 256), $rand.Next(50, 256))
-    $dx = $rand.Next(-5, 6); if ($dx -eq 0) { $dx = 3 }
-    $dy = $rand.Next(-5, 6); if ($dy -eq 0) { $dy = -3 }
+    $r = $rand.Next(35, 100)
+    $color = [System.Drawing.Color]::FromArgb($rand.Next(60, 140), $rand.Next(40, 220), $rand.Next(100, 256), $rand.Next(150, 256))
+    $dx = $rand.Next(-4, 5); if ($dx -eq 0) { $dx = 2 }
+    $dy = $rand.Next(-4, 5); if ($dy -eq 0) { $dy = -2 }
     $circle = [PSCustomObject]@{
         X      = $rand.Next(100, 1000)
         Y      = $rand.Next(100, 600)
@@ -124,50 +122,68 @@ for ($i = 0; $i -lt $CircleCount; $i++) {
     [void]$global:Circles.Add($circle)
 }
 
-# Bottom-Right Notification Panel
+# Bottom-Right Information Card (Expanded 680x185)
 $panel = New-Object System.Windows.Forms.Panel
-$panel.Size = New-Object System.Drawing.Size(560, 125)
-$panel.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48)
+$panel.Size = New-Object System.Drawing.Size(680, 185)
+$panel.BackColor = [System.Drawing.Color]::FromArgb(40, 42, 46)
 $panel.GetType().GetProperty("DoubleBuffered", $bindingFlags).SetValue($panel, $true, $null)
 
-# 1. Countdown Header
+# 1. Countdown Header (12pt Bold)
 $lblCountdown = New-Object System.Windows.Forms.Label
 $lblCountdown.Text = "This break will close automatically in 30 seconds."
-$lblCountdown.Font = New-Object System.Drawing.Font("Segoe UI", 11, [System.Drawing.FontStyle]::Bold)
-$lblCountdown.ForeColor = [System.Drawing.Color]::FromArgb(0, 210, 255)
-$lblCountdown.Location = New-Object System.Drawing.Point(15, 12)
+$lblCountdown.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
+$lblCountdown.ForeColor = [System.Drawing.Color]::FromArgb(0, 215, 255)
+$lblCountdown.Location = New-Object System.Drawing.Point(18, 14)
 $lblCountdown.AutoSize = $true
 $panel.Controls.Add($lblCountdown)
 
-# 2. Stretch & Hydration Prompt
+# 2. Stretch & Water Prompt (11pt Bold)
 $lblHealthMsg = New-Object System.Windows.Forms.Label
 $lblHealthMsg.Text = "Please use this break to stretch and drink water."
-$lblHealthMsg.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
-$lblHealthMsg.ForeColor = [System.Drawing.Color]::FromArgb(240, 240, 240)
-$lblHealthMsg.Location = New-Object System.Drawing.Point(15, 38)
+$lblHealthMsg.Font = New-Object System.Drawing.Font("Segoe UI", 11, [System.Drawing.FontStyle]::Bold)
+$lblHealthMsg.ForeColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
+$lblHealthMsg.Location = New-Object System.Drawing.Point(18, 42)
 $lblHealthMsg.AutoSize = $true
 $panel.Controls.Add($lblHealthMsg)
 
-# 3. Meeting Schedule Notice
+# 3. Meeting Schedule Notice (9.5pt Regular)
 $lblMeetingMsg = New-Object System.Windows.Forms.Label
-$lblMeetingMsg.Text = "Have upcoming meetings or need quiet hours? Open C:\Scripts\StretchReminder and edit the meetings.txt file to block interruptions."
-$lblMeetingMsg.Font = New-Object System.Drawing.Font("Segoe UI", 8.5)
+$lblMeetingMsg.Text = "Have upcoming meetings or need quiet hours? Open C:\Scripts\StretchReminder and edit meetings.txt to block interruptions."
+$lblMeetingMsg.Font = New-Object System.Drawing.Font("Segoe UI", 9.5)
 $lblMeetingMsg.ForeColor = [System.Drawing.Color]::FromArgb(180, 180, 180)
-$lblMeetingMsg.Location = New-Object System.Drawing.Point(15, 66)
-$lblMeetingMsg.Size = New-Object System.Drawing.Size(530, 45)
+$lblMeetingMsg.Location = New-Object System.Drawing.Point(18, 72)
+$lblMeetingMsg.Size = New-Object System.Drawing.Size(645, 50)
 $panel.Controls.Add($lblMeetingMsg)
+
+# 4. Open-Source Attribution & Credit Line (9.0pt Italic)
+$lblCredits = New-Object System.Windows.Forms.Label
+$lblCredits.Text = "Engineered by Dr. S. Vishnu Kumar @ Megam Solutions (https://github.com/drvkphd/) • Open-source & free to adapt with due credit."
+$lblCredits.Font = New-Object System.Drawing.Font("Segoe UI", 9.0, [System.Drawing.FontStyle]::Italic)
+$lblCredits.ForeColor = [System.Drawing.Color]::FromArgb(130, 200, 225)
+$lblCredits.Location = New-Object System.Drawing.Point(18, 135)
+$lblCredits.Size = New-Object System.Drawing.Size(645, 30)
+$panel.Controls.Add($lblCredits)
 
 $form.Add_Load({
     $panel.Location = New-Object System.Drawing.Point(($form.ClientSize.Width - $panel.Width - 40), ($form.ClientSize.Height - $panel.Height - 40))
 })
 $form.Controls.Add($panel)
 
-# Animation Render Loop
+# --- VECTOR GRAPHICS TOOLS ---
+$global:AnimTick = 0
+$penWhite = New-Object System.Drawing.Pen([System.Drawing.Color]::White, 5)
+$penCyan  = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(0, 220, 255), 4)
+$penWhite.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
+$penWhite.EndCap   = [System.Drawing.Drawing2D.LineCap]::Round
+$brushWater = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(180, 0, 170, 255))
+$brushWhite = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
+$fontCaption = New-Object System.Drawing.Font("Segoe UI", 15, [System.Drawing.FontStyle]::Bold)
+
 $form.Add_Paint({
     param($_, $e)
     $g = $e.Graphics
     $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-    
+
     foreach ($c in $global:Circles) {
         $c.X += $c.DX
         $c.Y += $c.DY
@@ -175,9 +191,55 @@ $form.Add_Paint({
         if ($c.Y -le 0 -or ($c.Y + ($c.Radius * 2)) -ge $form.ClientSize.Height) { $c.DY = -$c.DY }
         $g.FillEllipse($c.Brush, $c.X, $c.Y, $c.Radius * 2, $c.Radius * 2)
     }
+
+    $sine = [Math]::Sin($global:AnimTick * 0.12)
+
+    # 1. ANIMATED STRETCHING FIGURE (Center-Left)
+    $figX = [int]($form.ClientSize.Width * 0.35)
+    $figY = [int]($form.ClientSize.Height * 0.45)
+    $swayX = [int]($sine * 14)
+    $headY = $figY - 80 + [int]($sine * 4)
+
+    $g.DrawEllipse($penWhite, ($figX + $swayX - 16), $headY, 32, 32)
+    $g.DrawLine($penWhite, ($figX + $swayX), ($headY + 32), $figX, ($figY + 40))
+    
+    $armSpread = [int](30 + ($sine * 10))
+    $armReachY = $headY - 25 - [int]($sine * 15)
+    $g.DrawLine($penWhite, ($figX + $swayX), ($headY + 45), ($figX + $swayX - $armSpread), $armReachY)
+    $g.DrawLine($penWhite, ($figX + $swayX), ($headY + 45), ($figX + $swayX + $armSpread), $armReachY)
+    
+    $g.DrawLine($penWhite, $figX, ($figY + 40), ($figX - 25), ($figY + 110))
+    $g.DrawLine($penWhite, $figX, ($figY + 40), ($figX + 25), ($figY + 110))
+    $g.DrawString("STRETCH", $fontCaption, $brushWhite, ($figX - 45), ($figY + 130))
+
+    # 2. ANIMATED DRINKING GLASS (Center-Right)
+    $cupX = [int]($form.ClientSize.Width * 0.60)
+    $cupY = [int]($form.ClientSize.Height * 0.45)
+
+    $state = $g.Save()
+    $tiltAngle = [float]($sine * 18)
+    $g.TranslateTransform($cupX + 35, $cupY + 60)
+    $g.RotateTransform($tiltAngle)
+
+    $g.DrawLine($penCyan, -30, -50, -20, 50)
+    $g.DrawLine($penCyan, -20, 50, 20, 50)
+    $g.DrawLine($penCyan, 20, 50, 30, -50)
+
+    $waterLevel = [int](-10 + ($sine * 12))
+    $waterPoints = @(
+        (New-Object System.Drawing.Point(-22, $waterLevel)),
+        (New-Object System.Drawing.Point(22, $waterLevel)),
+        (New-Object System.Drawing.Point(18, 48)),
+        (New-Object System.Drawing.Point(-18, 48))
+    )
+    $g.FillPolygon($brushWater, $waterPoints)
+    $g.DrawLine($penWhite, 0, 30, 25, -70)
+    $g.Restore($state)
+
+    $g.DrawString("DRINK WATER", $fontCaption, $brushWhite, ($cupX - 20), ($cupY + 130))
 })
 
-# Tick Timer (~25 FPS)
+# Tick timer
 $global:AllowClose = $false
 $masterTimer = New-Object System.Windows.Forms.Timer
 $masterTimer.Interval = 40 
@@ -185,7 +247,9 @@ $startTime = [System.Diagnostics.Stopwatch]::StartNew()
 $lastSecondCheck = 0
 
 $masterTimer.Add_Tick({
+    $global:AnimTick++
     $form.Invalidate()
+
     $elapsedSeconds = [Math]::Floor($startTime.Elapsed.TotalSeconds)
     if ($elapsedSeconds -gt $lastSecondCheck) {
         $lastSecondCheck = $elapsedSeconds
@@ -204,4 +268,10 @@ $masterTimer.Add_Tick({
 $masterTimer.Start()
 [System.Windows.Forms.Application]::Run($form)
 
+# Cleanup
+$penWhite.Dispose()
+$penCyan.Dispose()
+$brushWater.Dispose()
+$brushWhite.Dispose()
+$fontCaption.Dispose()
 foreach ($c in $global:Circles) { $c.Brush.Dispose() }

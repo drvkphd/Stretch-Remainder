@@ -10,7 +10,7 @@ To prevent workflow disruptions during important calls or focus sessions, the ut
 * **Auto-Generating Configuration:** Creates the text configuration file automatically on its first run with built-in template instructions.
 * **Flicker-Free Animation Engine:** Utilizes advanced memory double-buffering across the application canvas and user interfaces to provide smooth, anti-aliased floating circle shapes at ~25 FPS.
 * **Calm Countdown Tracker:** Displays a high-visibility countdown string ("This break will close automatically in X seconds") to keep users informed and prevent panic.
-* **Sleep & Wake-Up Resilient:** Optimized specifically to stay aligned during modern laptop lid closures and sleep transitions without breaking the core time interval loops.
+* **Sleep & Wake-Up Resilient:** Optimized specifically using synchronized event delays to prevent overlapping or rapid back-to-back triggers during laptop sleep/wake transitions.
 
 ---
 
@@ -20,27 +20,45 @@ To prevent workflow disruptions during important calls or focus sessions, the ut
 1. Open File Explorer and create a folder named `C:\Scripts\`.
 2. Save the code file from this repository as **`StretchReminder.ps1`** inside that folder.
 
-### Step 2: Initialize Automation Engine
-To securely bypass registry limitations and handle automated execution loops across reboots, initialize the baseline schedule container using your terminal.
-
-1. Right-click the Windows Start menu button and select **Terminal (Admin)** or **PowerShell (Admin)**.
-2. Paste the following snippet and hit **Enter**:
-
-```powershell
-schtasks.exe /Create /TN "StretchReminder" /TR "powershell.exe -WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -File C:\Scripts\StretchReminder.ps1" /SC MINUTE /MO 30 /F
-```
-
-### Step 3: Add Lid Wake-Up Triggers via GUI
-Because modern devices rely on Sleep modes instead of full shutdowns, modify the task parameters using the graphical manager to configure smooth wake-up delay cycles:
+### Step 2: Configure Task Scheduler (UI Setup)
+To guarantee your timelines never clash or create duplicate trigger cycles, we set up the automation rules directly inside the Windows Task Scheduler graphical interface:
 
 1. Search for **Task Scheduler** in your Start menu and open it.
-2. Select **Task Scheduler Library** in the left navigation sidebar.
-3. Locate **StretchReminder** in the center window panel and double-click to open its properties.
-4. On the **General Tab**, go down to **Configure for:** and change it to **Windows 10**.
-5. Switch to the **Triggers Tab**, click on your **On workstation unlock** trigger, and click **Edit...** (If it's missing, simply click **New...** and choose *On workstation unlock* from the dropdown).
-6. Under *Advanced settings*, check the box for **Delay task for:** and set it to **30 minutes**. Click **OK**.
-7. Switch to the **Conditions Tab** and explicitly **uncheck** the box stating *"Start the task only if the computer is on AC power"*. This guarantees your stretch intervals continue running while your machine operates on battery power.
-8. Click **OK** to commit all setting changes.
+2. In the right-hand panel, click **Create Task...**
+3. Configure the following tabs:
+
+#### 📋 General Tab
+* **Name:** `StretchReminder`
+* **Configure for:** Change the drop-down menu at the bottom to **Windows 10** (this ensures modern execution rules handle the script contexts properly).
+
+#### ⚡ Triggers Tab
+Click **New...** at the bottom and create these **two** separate trigger layers:
+
+* **Trigger 1 (Startup & Interval Timer):**
+  * *Begin the task:* **At log on**
+  * *Advanced settings:* Check **Delay task for:** and type or select **30 minutes**.
+  * *Advanced settings:* Check **Repeat task every:** and select or type **30 minutes**.
+  * *for a duration of:* Change to **Indefinitely**.
+  * Click **OK**.
+
+* **Trigger 2 (Lid Open & Wake from Sleep Timer):**
+  * *Begin the task:* **On workstation unlock**
+  * *Advanced settings:* Check **Delay task for:** and type or select **30 minutes**.
+  * Click **OK**.
+
+#### 🛠️ Actions Tab
+Click **New...** and configure a program launch:
+* **Action:** `Start a program`
+* **Program/script:** `powershell`
+* **Add arguments (optional):** 
+  ```text
+  -WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -File C:\Scripts\StretchReminder.ps1
+  ```
+* Click **OK**.
+
+#### 🔋 Conditions Tab
+* Explicitly **uncheck** the box stating *"Start the task only if the computer is on AC power"*. This guarantees your stretch intervals continue tracking while your machine operates on battery power.
+* Click **OK** to save the task entirely.
 
 ---
 

@@ -1,130 +1,87 @@
-# 🤸‍♂️ Windows 11 Full-Screen Dynamic Stretch Break Reminder
+# 🤸‍♂️ Windows 11 Full-Screen Dynamic Stretch & Hydration Reminder
 
-A lightweight, 100% native Windows 11 utility designed to combat desktop fatigue and posture strain. 
+A lightweight, zero-bloat, native Windows utility designed to combat desktop fatigue, promote healthy posture, and keep hydration on track. Every 30 minutes of continuous desk work, it gently takes over the screen for exactly 30 seconds with a fluid GDI+ vector animation (a swaying stick figure stretching overhead and an animated glass tumbler with sloshing water) and ambient floating bubbles[cite: 8, 10].
 
-Every 30 minutes of continuous desk work, it displays a fluid, screensaver-style full-screen overlay for 30 seconds. To prevent unwanted interruptions, it automatically detects when you step away, resets your work timer when unlocking after a break, and silently bypasses scheduled meetings via a simple text configuration file.
-
-## ✨ Features
-
-* **100% Native Architecture:** Built completely with native Windows Form graphics inside a PowerShell engine—zero third-party dependencies or background daemons.
-* **Smart Desk-Presence Logic:**
-  * **Absence Detection:** If you step away or close your laptop lid for more than 35 minutes (e.g., lunch, coffee break), unlocking automatically grants you a fresh 30-minute block of quiet focus time.
-  * **Short-Lock Suppression:** If you briefly lock your screen (under 25 minutes), it suppresses duplicate triggers.
-  * **Zero Lockout on Return:** You are never locked out immediately after logging in or unlocking your PC.
-* **Proactive Meeting Bypass (`meetings.txt`):** Silently checks a local schedule file before executing. If you are inside a scheduled meeting or focus block, the reminder quietly skips.
-* **Flicker-Free Animation Engine:** Utilizes advanced memory double-buffering across the application canvas and notification panel to render smooth floating circles at ~25 FPS.
-* **Calm Countdown Interface:** Displays a high-visibility ticking countdown alongside health reminders to ensure users remain calm and informed.
-* **Trace Diagnostics (`stretch_debug.log`):** Logs every execution attempt, cooldown block, and meeting suppression for transparent visibility.
+To prevent workflow disruptions during calls or focus sessions, the utility cross-references a local schedule file (`meetings.txt`). If a meeting or quiet focus hour is active, the break is silently bypassed[cite: 8].
 
 ---
 
-## 📂 Project Directory Structure
+## ✨ Features
+* **100% Native Architecture:** Built purely with Windows Forms and GDI+ vector drawing inside native PowerShell—zero third-party dependencies, Node.js, or Electron overhead[cite: 8].
+* **Smart Presence Awareness:** Distinguishes between active desk work and absences. Stepping away for longer than 45 minutes (such as lunch or walking away) automatically restarts your work timer with a full 30-minute grace window upon return, rather than interrupting you the moment you sit back down.
+* **Dual Vector Animations:** Smooth, programmatic sine-wave vector animations depicting a stick figure stretching overhead and a glass tumbler with sloshing water[cite: 8, 10].
+* **Proactive Meeting Suppression:** Automatically bypasses scheduled interruptions when the current time falls within active blocks in `meetings.txt`[cite: 8].
+* **Zero System Footprint:** Windows Task Scheduler handles triggers; the script consumes 0% background CPU while you work[cite: 8].
+
+---
+
+## 📂 Repository Structure
 
 ```text
 C:\Scripts\StretchReminder\
-├── StretchReminder.ps1      # Core application logic
-├── meetings.txt             # (Auto-generated) Meeting & focus schedule
-├── stretch_debug.log        # (Auto-generated) Activity & trace log
-└── README.md                # Documentation & setup guide
-```
+│
+├── StretchReminder.ps1      # Core standalone PowerShell utility & UI engine
+├── meetings.txt             # User-defined meeting/focus quiet windows (auto-generated)
+├── stretch_debug.log        # Activity trace log (timestamps, resets, suppresses)
+└── README.md                # Documentation & deployment guide
+```[cite: 8]
 
 ---
 
-## 🚀 Step-by-Step Deployment Guide
+## 🚀 Quick Setup & Deployment
 
-### Step 1: Save the Core Script
-
-1. Open File Explorer and create the folder:
-   ```text
-   C:\Scripts\StretchReminder\
-   ```
-2. Save the `StretchReminder.ps1` file from this repository inside that folder.
+### Step 1: Place the Script
+Create the directory `C:\Scripts\StretchReminder\` and save `StretchReminder.ps1` inside it[cite: 8].
 
 ### Step 2: Register the Unified Scheduled Task
-
-To ensure seamless coordination without conflicting timers, register the single unified task using **PowerShell (Administrator)**:
+Open **PowerShell as Administrator** and execute:
 
 ```powershell
-# 1. Clean out any previous task registrations
+# Remove any legacy task instances
 Unregister-ScheduledTask -TaskName "StretchReminder" -Confirm:$false -ErrorAction SilentlyContinue
-Unregister-ScheduledTask -TaskName "StretchReminder-Reset" -Confirm:$false -ErrorAction SilentlyContinue
 
-# 2. Define action pointing to the script
+# Configure action pointing to standalone script
 $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -File C:\Scripts\StretchReminder\StretchReminder.ps1"
 
-# 3. Trigger 1: Log on with 30-minute repeat
+# Trigger 1: Logon with 30-minute repetition
 $TriggerLogon = New-ScheduledTaskTrigger -AtLogOn
 $TriggerLogon.RepetitionInterval = (New-TimeSpan -Minutes 30)
 
-# 4. Trigger 2: Workstation unlock
+# Trigger 2: Workstation unlock
 $TriggerUnlock = Get-CimClass -Namespace Root/Microsoft/Windows/TaskScheduler -ClassName MSFT_TaskSessionStateChangeTrigger | New-CimInstance -ClientOnly -Property @{
     StateChange = [UInt16]8
     UserId = "$env:USERDOMAIN\$env:USERNAME"
 }
 
-# 5. Task settings: allow battery execution and prevent duplicate instances
+# Settings: Battery friendly + drop overlapping instances
 $Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
 $Settings.MultipleInstances = "IgnoreNew"
 
-# 6. Register unified task
-Register-ScheduledTask -TaskName "StretchReminder" -Action $Action -Trigger @($TriggerLogon, $TriggerUnlock) -Settings $Settings -Description "Runs full-screen stretch break after 30 mins of active work." -Force
-```
+# Register the single unified task
+Register-ScheduledTask -TaskName "StretchReminder" -Action $Action -Trigger @($TriggerLogon, $TriggerUnlock) -Settings $Settings -Description "Runs full-screen stretch and hydration break after 30 mins of continuous work." -Force
+```[cite: 8]
 
 ---
 
-## 📅 Managing Your Meeting Schedule
+## 📅 Managing Meeting Windows (`meetings.txt`)
 
-On its first run, the script automatically generates a template file at:
-`C:\Scripts\StretchReminder\meetings.txt`
-
-Open this file in Notepad to enter your busy blocks in **24-hour format (`HH:MM-HH:MM`)**, one per line. Lines starting with `#` are ignored:
+On its initial run, the script creates `meetings.txt` in the script directory[cite: 8]. Add busy time intervals using 24-hour format (`HH:MM-HH:MM`):
 
 ```text
 # === Stretch Reminder Focus/Meeting Schedule ===
 # Enter busy time blocks below using 24-hour formatting (HH:MM-HH:MM).
 # Lines starting with '#' are ignored by the script.
-#
-# Samples:
-# 09:30-10:15
-# 14:00-15:30
-11:00-12:00
-14:30-15:30
-16:00-17:15
-```
+
+09:30-10:15
+14:00-15:30
+16:00-17:00
+```[cite: 8]
 
 ---
 
-## ⚙️ How the Session Logic Works
+## 🔍 Instant Verification & Testing
 
-| Scenario | Script Action | User Experience |
-| :--- | :--- | :--- |
-| **Morning Boot / First Login** | Gap $> 35$ min detected | Timestamp set to now; exits silently. **No pop-up**. |
-| **30 Minutes Continuous Work** | Gap $= 30$ min reached | **Full-screen 30-second stretch break runs**. |
-| **Lunch / Stepped Away (>35 min)** | Gap $> 35$ min detected | Resets timestamp on unlock. **No pop-up**; grants 30 min focus. |
-| **Quick Screen Lock (<25 min)** | Gap $< 25$ min detected | Exits silently under cooldown. **No pop-up**. |
-| **Active Meeting Window** | Matches `meetings.txt` range | Exits silently. **No pop-up**. |
-
----
-
-## 🧪 Testing & Verification
-
-* **Visual Test (Bypass Cooldown):**
-  ```powershell
-  Remove-Item "$env:TEMP\stretch_last_run.txt" -ErrorAction SilentlyContinue; powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\Scripts\StretchReminder\StretchReminder.ps1
-  ```
-* **View Activity Log:**
-  ```powershell
-  Get-Content "C:\Scripts\StretchReminder\stretch_debug.log" -Tail 5
-  ```
-
----
-
-## 🗑️ Uninstallation
-
-To completely remove the utility from your system, run in PowerShell (Administrator):
+To preview the full-screen animation immediately without waiting for the 30-minute timer, run this command in PowerShell:
 
 ```powershell
-Unregister-ScheduledTask -TaskName "StretchReminder" -Confirm:$false -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force "C:\Scripts\StretchReminder" -ErrorAction SilentlyContinue
-Remove-Item "$env:TEMP\stretch_last_run.txt" -ErrorAction SilentlyContinue
-```
+[System.IO.File]::WriteAllText("$([System.IO.Path]::GetTempPath())stretch_last_run.txt", (Get-Date).AddMinutes(-31).ToString("o")); powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Scripts\StretchReminder\StretchReminder.ps1"
